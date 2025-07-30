@@ -38,6 +38,8 @@ function App() {
   const [saveMsg, setSaveMsg] = useState('');
   const [theme, setTheme] = useState('dark');
   const [notifEnabled, setNotifEnabled] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
 
   // Splash screen effect
   useEffect(() => {
@@ -123,48 +125,135 @@ function App() {
     }
   }, [userId, page]);
 
-  // Bottom app bar navigation
-  const BottomBar = () => (
-    <nav className="bottombar">
-      {NAV_LINKS.map(link => {
-        if (link.adminOnly && userId !== 1) return null;
-        return (
+  // Sidebar navigation replacing bottom app bar
+  const SidebarNav = () => {
+    return (
+      <nav className="sidebar-nav" style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        height: '100vh',
+        width: isSidebarVisible ? (isSidebarOpen ? 220 : 60) : 0,
+        backgroundColor: '#222',
+        color: '#ff9800',
+        display: 'flex',
+        flexDirection: 'column',
+        paddingTop: 20,
+        boxShadow: '2px 0 8px rgba(0,0,0,0.5)',
+        zIndex: 1000,
+        transition: 'width 0.3s ease',
+        overflowX: 'hidden',
+      }}>
+        <div style={{ padding: '0 20px 20px 20px', fontWeight: 'bold', fontSize: '1.5rem', borderBottom: '1px solid #444', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {isSidebarOpen ? 'AutoHub' : 'AH'}
           <button
-            key={link.key}
-            className={`bottombar-item${page === link.key ? ' active' : ''}`}
-            onClick={() => setPage(link.key)}
-            title={link.label}
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#ff9800',
+              fontSize: '1.5rem',
+              cursor: 'pointer',
+              userSelect: 'none',
+              padding: 0,
+              marginLeft: 10,
+            }}
+            title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
-            <span className="icon">{link.icon}</span>
-            <span style={{ fontSize: '0.85em', marginTop: 2 }}>{link.label}
-              {link.key === 'notifications' && notifications.length > 0 && (
-                <span style={{
-                  display: 'inline-block',
-                  background: '#ff9800',
-                  color: '#111',
-                  borderRadius: '8px',
-                  fontSize: '0.8em',
-                  fontWeight: 700,
-                  marginLeft: 4,
-                  padding: '0 6px',
-                  minWidth: 18
-                }}>{notifications.length}</span>
-              )}
-            </span>
+            {isSidebarOpen ? '«' : '»'}
           </button>
-        );
-      })}
-      <button
-        className="bottombar-item"
-        onClick={handleLogout}
-        title="Logout"
-        style={{ color: '#f44336', fontWeight: 700 }}
-      >
-        <span className="icon">⏻</span>
-        <span style={{ fontSize: '0.85em', marginTop: 2 }}>Logout</span>
-      </button>
-    </nav>
-  );
+          {isSidebarOpen && (
+            <button
+              onClick={() => setIsSidebarVisible(false)}
+              aria-label="Close sidebar"
+              title="Close sidebar"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#ff9800',
+                fontSize: '1.5rem',
+                cursor: 'pointer',
+                userSelect: 'none',
+                padding: 0,
+                marginLeft: 10,
+              }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {NAV_LINKS.map(link => {
+            if (link.adminOnly && userId !== 1) return null;
+            const isActive = page === link.key;
+            return (
+              <button
+                key={link.key}
+                onClick={() => setPage(link.key)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  width: '100%',
+                  padding: '12px 20px',
+                  backgroundColor: isActive ? '#ff9800' : 'transparent',
+                  color: isActive ? '#111' : '#ff9800',
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: isActive ? '700' : '400',
+                  borderRadius: '0 20px 20px 0',
+                  marginBottom: 4,
+                  userSelect: 'none',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+                title={link.label}
+              >
+                <span style={{ marginRight: isSidebarOpen ? 12 : 0, fontSize: '1.2rem' }}>{link.icon}</span>
+                {isSidebarOpen && <span style={{ flex: 1 }}>{link.label}</span>}
+                {link.key === 'notifications' && notifications.length > 0 && isSidebarOpen && (
+                  <span style={{
+                    background: '#ff9800',
+                    color: '#111',
+                    borderRadius: '8px',
+                    fontSize: '0.8em',
+                    fontWeight: 700,
+                    padding: '0 6px',
+                    minWidth: 18,
+                    textAlign: 'center',
+                  }}>{notifications.length}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          onClick={handleLogout}
+          title="Logout"
+          style={{
+            margin: 20,
+            padding: '12px 20px',
+            backgroundColor: '#f44336',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            fontWeight: '700',
+            fontSize: '1rem',
+            cursor: 'pointer',
+            userSelect: 'none',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          ⏻ {isSidebarOpen ? 'Logout' : ''}
+        </button>
+      </nav>
+    );
+  };
 
   // Dashboard cards for quick access
   const DashboardCards = () => (
@@ -334,28 +423,56 @@ function App() {
   return (
     <div className="app-shell">
       {showSplash ? <Splash /> : null}
-      <div style={{ minHeight: '100vh', display: showSplash ? 'none' : undefined }}>
+      <div style={{ minHeight: '100vh', display: showSplash ? 'none' : undefined, marginLeft: isSidebarVisible ? (isSidebarOpen ? 220 : 60) : 0, transition: 'margin-left 0.3s ease' }}>
         {/* Dashboard header with logo/name on left, welcome on right */}
         {userId && page === 'dashboard' && (
-          <div className="dashboard-header-flex">
-            <div className="dashboard-brand">
+          <div className="dashboard-header-flex" style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
+            <div className="dashboard-brand" style={{ flexShrink: 0 }}>
               <img src={logo} alt="AutoHub Logo" style={{ height: 44, verticalAlign: 'middle', marginRight: 10, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }} />
               <span style={{ color: '#ff9800', fontWeight: 700, fontSize: '1.3rem', letterSpacing: 1 }}>AutoHub</span>
             </div>
-            <div className="dashboard-header-main" style={{ flex: 1, textAlign: 'right' }}>
-              <h1 style={{ margin: 0, fontSize: '1.3rem', color: '#ff9800', fontWeight: 700 }}>
+            <div className="dashboard-header-main" style={{ flex: 1, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <h1 style={{ margin: 0, fontSize: '1.3rem', color: '#ff9800', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 Welcome, {userName || 'Driver'}{vehicleModel ? ` (${vehicleModel})` : ''}!
-                <button className="settings-gear" onClick={() => setShowSettings(true)} title="Settings">
-                  <span role="img" aria-label="settings" style={{ fontSize: 22, marginLeft: 8, color: '#ff9800' }}>⚙️</span>
+                <button className="settings-gear" onClick={() => setShowSettings(true)} title="Settings" style={{ marginLeft: 8 }}>
+                  <span role="img" aria-label="settings" style={{ fontSize: 22, color: '#ff9800' }}>⚙️</span>
                 </button>
               </h1>
-              <p style={{ color: '#ccc', margin: 0, fontSize: '1.05rem' }}>Your car’s health at a glance. Stay on top of maintenance, upgrades, and more.</p>
+              <p style={{ color: '#ccc', margin: 0, fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Your car’s health at a glance. Stay on top of maintenance, upgrades, and more.</p>
             </div>
           </div>
         )}
         {renderPage()}
       </div>
-      {userId && !showSplash && <BottomBar />}
+      {isSidebarVisible && userId && !showSplash && page !== 'login' && page !== 'register' && <SidebarNav />}
+      {!isSidebarVisible && userId && !showSplash && page !== 'login' && page !== 'register' && (
+        <button
+          onClick={() => setIsSidebarVisible(true)}
+          aria-label="Open sidebar"
+          title="Open sidebar"
+          style={{
+            position: 'fixed',
+            top: 20,
+            left: 10,
+            zIndex: 1100,
+            backgroundColor: '#222',
+            color: '#ff9800',
+            border: 'none',
+            borderRadius: 8,
+            padding: '8px 12px',
+            cursor: 'pointer',
+            fontSize: '1.2rem',
+            userSelect: 'none',
+            display: 'block',
+            height: 40,
+            width: 40,
+            textAlign: 'center',
+            lineHeight: '24px',
+          }}
+        >
+          ☰
+        </button>
+      )}
       {showSettings && <SettingsModal />}
     </div>
   );

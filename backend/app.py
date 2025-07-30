@@ -12,8 +12,9 @@ CORS(app)
 # Update these values with your MySQL credentials
 DB_CONFIG = {
     'host': 'localhost',
+    'port': 3305,
     'user': 'root',
-    'password': 'Kenya321.',  # Set your MySQL root password
+    'password': 'Kinyanjui@7873',  # Set your MySQL root password
     'database': 'autohub'
 }
 
