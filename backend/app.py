@@ -6,7 +6,12 @@ import os
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-CORS(app)
+# Enhanced CORS configuration to handle preflight requests properly
+CORS(app, 
+     origins=['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
 # Database connection setup
 # Update these values with your MySQL credentials
@@ -184,5 +189,68 @@ def get_notifications():
         notifications.append({'message': 'Admin: 2 new service requests.', 'type': 'admin', 'date': '2024-07-10'})
     return jsonify({'notifications': notifications})
 
+# Booking API endpoints
+
+import logging
+
+@app.route('/bookings', methods=['POST'])
+def create_booking():
+    try:
+        data = request.get_json()
+        logging.info(f"Received booking data: {data}")
+        service_type = data.get('serviceType')
+        date = data.get('date')
+        time = data.get('time')
+
+        if not service_type or not date or not time:
+            logging.warning("Missing required fields in booking data")
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO bookings (service_type, date, time, status) VALUES (%s, %s, %s, %s)",
+            (service_type, date, time, 'pending')
+        )
+        conn.commit()
+        booking_id = cursor.lastrowid
+        cursor.close()
+        conn.close()
+        logging.info(f"Booking created with ID: {booking_id}")
+        return jsonify({'message': 'Booking created', 'booking_id': booking_id}), 201
+    except Exception as e:
+        logging.error(f"Error creating booking: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/bookings', methods=['GET'])
+def get_bookings():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM bookings ORDER BY date, time")
+        bookings = cursor.fetchall()
+        # Convert time and date fields to string for JSON serialization
+        for booking in bookings:
+            if 'time' in booking and booking['time'] is not None:
+                time_value = booking['time']
+                # Handle timedelta or time object
+                if hasattr(time_value, 'strftime'):
+                    booking['time'] = time_value.strftime('%H:%M:%S')
+                elif hasattr(time_value, 'total_seconds'):
+                    total_seconds = int(time_value.total_seconds())
+                    hours = total_seconds // 3600
+                    minutes = (total_seconds % 3600) // 60
+                    seconds = total_seconds % 60
+                    booking['time'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                else:
+                    booking['time'] = str(time_value)
+            if 'date' in booking and booking['date'] is not None:
+                booking['date'] = booking['date'].strftime('%Y-%m-%d')
+        cursor.close()
+        conn.close()
+        return jsonify({'bookings': bookings})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(host='0.0.0.0', debug=True)

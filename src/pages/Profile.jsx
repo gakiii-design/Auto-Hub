@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config/api';
 
 const Profile = ({ userId }) => {
   const [vehicle, setVehicle] = useState({
@@ -16,7 +17,7 @@ const Profile = ({ userId }) => {
     e.preventDefault();
     setMessage('');
     try {
-      const res = await fetch('http://127.0.0.1:5000/profile', {
+      const res = await fetch(`${API_BASE_URL}/profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, vehicle })

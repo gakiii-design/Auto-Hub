@@ -10,6 +10,9 @@ import Emergency from './pages/Emergency';
 import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 import logo from './assets/logo.jpeg';
+import { API_BASE_URL } from './config/api';
+
+import ServiceBooking from './pages/ServiceBooking';
 
 const NAV_LINKS = [
   { key: 'dashboard', label: 'Dashboard', icon: '🏠' },
@@ -19,6 +22,7 @@ const NAV_LINKS = [
   { key: 'notifications', label: 'Notifications', icon: '🔔' },
   { key: 'emergency', label: 'Emergency', icon: '🚨' },
   { key: 'profile', label: 'Profile', icon: '👤' },
+  { key: 'servicebooking', label: 'Service Booking', icon: '📅' },
   { key: 'admin', label: 'Admin', icon: '🧑‍🔧', adminOnly: true },
 ];
 
@@ -38,8 +42,6 @@ function App() {
   const [saveMsg, setSaveMsg] = useState('');
   const [theme, setTheme] = useState('dark');
   const [notifEnabled, setNotifEnabled] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
 
   // Splash screen effect
   useEffect(() => {
@@ -124,136 +126,6 @@ function App() {
       });
     }
   }, [userId, page]);
-
-  // Sidebar navigation replacing bottom app bar
-  const SidebarNav = () => {
-    return (
-      <nav className="sidebar-nav" style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        height: '100vh',
-        width: isSidebarVisible ? (isSidebarOpen ? 220 : 60) : 0,
-        backgroundColor: '#222',
-        color: '#ff9800',
-        display: 'flex',
-        flexDirection: 'column',
-        paddingTop: 20,
-        boxShadow: '2px 0 8px rgba(0,0,0,0.5)',
-        zIndex: 1000,
-        transition: 'width 0.3s ease',
-        overflowX: 'hidden',
-      }}>
-        <div style={{ padding: '0 20px 20px 20px', fontWeight: 'bold', fontSize: '1.5rem', borderBottom: '1px solid #444', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {isSidebarOpen ? 'AutoHub' : 'AH'}
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#ff9800',
-              fontSize: '1.5rem',
-              cursor: 'pointer',
-              userSelect: 'none',
-              padding: 0,
-              marginLeft: 10,
-            }}
-            title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            {isSidebarOpen ? '«' : '»'}
-          </button>
-          {isSidebarOpen && (
-            <button
-              onClick={() => setIsSidebarVisible(false)}
-              aria-label="Close sidebar"
-              title="Close sidebar"
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#ff9800',
-                fontSize: '1.5rem',
-                cursor: 'pointer',
-                userSelect: 'none',
-                padding: 0,
-                marginLeft: 10,
-              }}
-            >
-              ×
-            </button>
-          )}
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {NAV_LINKS.map(link => {
-            if (link.adminOnly && userId !== 1) return null;
-            const isActive = page === link.key;
-            return (
-              <button
-                key={link.key}
-                onClick={() => setPage(link.key)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  width: '100%',
-                  padding: '12px 20px',
-                  backgroundColor: isActive ? '#ff9800' : 'transparent',
-                  color: isActive ? '#111' : '#ff9800',
-                  border: 'none',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  fontSize: '1rem',
-                  fontWeight: isActive ? '700' : '400',
-                  borderRadius: '0 20px 20px 0',
-                  marginBottom: 4,
-                  userSelect: 'none',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-                title={link.label}
-              >
-                <span style={{ marginRight: isSidebarOpen ? 12 : 0, fontSize: '1.2rem' }}>{link.icon}</span>
-                {isSidebarOpen && <span style={{ flex: 1 }}>{link.label}</span>}
-                {link.key === 'notifications' && notifications.length > 0 && isSidebarOpen && (
-                  <span style={{
-                    background: '#ff9800',
-                    color: '#111',
-                    borderRadius: '8px',
-                    fontSize: '0.8em',
-                    fontWeight: 700,
-                    padding: '0 6px',
-                    minWidth: 18,
-                    textAlign: 'center',
-                  }}>{notifications.length}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-        <button
-          onClick={handleLogout}
-          title="Logout"
-          style={{
-            margin: 20,
-            padding: '12px 20px',
-            backgroundColor: '#f44336',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            fontWeight: '700',
-            fontSize: '1rem',
-            cursor: 'pointer',
-            userSelect: 'none',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          ⏻ {isSidebarOpen ? 'Logout' : ''}
-        </button>
-      </nav>
-    );
-  };
 
   // Dashboard cards for quick access
   const DashboardCards = () => (
@@ -404,6 +276,7 @@ function App() {
     if (page === 'notifications') return <div className="centered-page"><Notifications /></div>;
     if (page === 'emergency') return <div className="centered-page"><Emergency /></div>;
     if (page === 'profile') return <div className="centered-page"><Profile userId={userId} /></div>;
+    if (page === 'servicebooking') return <div className="centered-page"><ServiceBooking onBookingSuccess={(booking) => { setBookingInfo(booking); setBookingSuccessMessage(booking.message || 'Booking successful!'); setPage('dashboard'); }} /></div>;
     if (page === 'admin' && userId === 1) return <div className="centered-page"><AdminDashboard /></div>;
     return <div className="centered-page"><div className="section-title">Page Not Found</div></div>;
   };
@@ -423,7 +296,7 @@ function App() {
   return (
     <div className="app-shell">
       {showSplash ? <Splash /> : null}
-      <div style={{ minHeight: '100vh', display: showSplash ? 'none' : undefined, marginLeft: isSidebarVisible ? (isSidebarOpen ? 220 : 60) : 0, transition: 'margin-left 0.3s ease' }}>
+      <div style={{ minHeight: '100vh', display: showSplash ? 'none' : undefined, marginLeft: 0, transition: 'margin-left 0.3s ease' }}>
         {/* Dashboard header with logo/name on left, welcome on right */}
         {userId && page === 'dashboard' && (
           <div className="dashboard-header-flex" style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
@@ -439,40 +312,32 @@ function App() {
                 </button>
               </h1>
               <p style={{ color: '#ccc', margin: 0, fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Your car’s health at a glance. Stay on top of maintenance, upgrades, and more.</p>
+              <button
+                onClick={() => setPage('servicebooking')}
+                style={{
+                  marginTop: 12,
+                  backgroundColor: '#ff6f00',
+                  color: '#fff',
+                  fontWeight: '700',
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '10px 20px',
+                  fontSize: '1.1rem',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 4px 8px rgba(255, 105, 0, 0.4)',
+                  transition: 'background-color 0.3s ease',
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#ff8f00'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ff6f00'}
+              >
+                Make a Booking
+              </button>
             </div>
           </div>
         )}
         {renderPage()}
       </div>
-      {isSidebarVisible && userId && !showSplash && page !== 'login' && page !== 'register' && <SidebarNav />}
-      {!isSidebarVisible && userId && !showSplash && page !== 'login' && page !== 'register' && (
-        <button
-          onClick={() => setIsSidebarVisible(true)}
-          aria-label="Open sidebar"
-          title="Open sidebar"
-          style={{
-            position: 'fixed',
-            top: 20,
-            left: 10,
-            zIndex: 1100,
-            backgroundColor: '#222',
-            color: '#ff9800',
-            border: 'none',
-            borderRadius: 8,
-            padding: '8px 12px',
-            cursor: 'pointer',
-            fontSize: '1.2rem',
-            userSelect: 'none',
-            display: 'block',
-            height: 40,
-            width: 40,
-            textAlign: 'center',
-            lineHeight: '24px',
-          }}
-        >
-          ☰
-        </button>
-      )}
       {showSettings && <SettingsModal />}
     </div>
   );

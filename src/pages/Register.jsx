@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config/api';
 
 const Register = ({ onGoLogin }) => {
   const [name, setName] = useState('');
@@ -9,7 +10,7 @@ const Register = ({ onGoLogin }) => {
   const handleRegister = async (e) => {
     e.preventDefault();
     setMessage('');
-    const res = await fetch('http://127.0.0.1:5000/register', {
+    const res = await fetch(`${API_BASE_URL}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password })
