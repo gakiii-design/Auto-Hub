@@ -16,7 +16,15 @@ const Login = ({ onLogin, onGoRegister }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (err) {
+        const text = await res.text();
+        console.error("Failed to parse JSON. Raw response:", text);
+        setMessage('Server returned invalid response.');
+        return;
+      }
       if (res.ok) {
         setMessage('Login successful!');
         if (onLogin) onLogin(data.user_id);

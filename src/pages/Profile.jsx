@@ -22,7 +22,15 @@ const Profile = ({ userId }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, vehicle })
       });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (err) {
+        const text = await res.text();
+        console.error("Failed to parse JSON. Raw response:", text);
+        setMessage('Server returned invalid response.');
+        return;
+      }
       if (res.ok) {
         setMessage('Profile updated successfully!');
       } else {

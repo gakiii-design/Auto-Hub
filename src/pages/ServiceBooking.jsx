@@ -28,39 +28,42 @@ const ServiceBooking = ({ onBookingSuccess }) => {
     }
 
     try {
-  const response = await fetch(`${API_BASE_URL}/bookings`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ serviceType, date, time }),
-  });
-
-  let data = {};
-  try {
-    data = await response.json();
-  } catch (jsonErr) {
-    console.warn("Warning: Failed to parse JSON response.");
-  }
-
-  if (response.ok) {
-    setDate('');
-    setTime('');
-    setServiceType(SERVICE_TYPES[0]);
-    if (onBookingSuccess) {
-      onBookingSuccess({
-        serviceType,
-        date,
-        time,
-        message: 'Booking successful!',
-        bookingId: data.booking_id || null,
+      const response = await fetch(`${API_BASE_URL}/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serviceType, date, time }),
       });
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        const text = await response.text();
+        console.error("Failed to parse JSON. Raw response:", text);
+        setMessage('Server returned invalid response.');
+        return;
+      }
+
+      if (response.ok) {
+        setDate('');
+        setTime('');
+        setServiceType(SERVICE_TYPES[0]);
+        if (onBookingSuccess) {
+          onBookingSuccess({
+            serviceType,
+            date,
+            time,
+            message: 'Booking successful!',
+            bookingId: data.booking_id || null,
+          });
+        }
+      } else {
+        setMessage('Failed to create booking: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Fetch error:', error);
+      setMessage('Unexpected error occurred.');
     }
-  } else {
-    setMessage('Failed to create booking: ' + (data.error || 'Unknown error'));
-  }
-} catch (error) {
-  console.error('Fetch error:', error);
-  setMessage('Unexpected error occurred.');
-}
   };
 
   return (
