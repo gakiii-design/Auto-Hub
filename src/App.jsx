@@ -79,9 +79,17 @@ function App() {
         display_name: displayName
       })
     })
-      .then(res => res.json())
+      .then(async res => {
+        try {
+          return await res.json();
+        } catch (err) {
+          const text = await res.text();
+          console.error("Failed to parse JSON. Raw response:", text);
+          throw new Error('Server returned invalid response.');
+        }
+      })
       .then(() => setSaveMsg('Changes saved!'))
-      .catch(() => setSaveMsg('Failed to save changes.'));
+      .catch((err) => setSaveMsg('Failed to save changes: ' + err.message));
   };
 
   // Fetch dashboard stats and notifications from backend
@@ -96,17 +104,41 @@ function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId })
-        }).then(res => res.json()),
+        }).then(async res => {
+          try {
+            return await res.json();
+          } catch (err) {
+            const text = await res.text();
+            console.error("Failed to parse JSON from maintenance. Raw response:", text);
+            throw new Error('Server returned invalid response for maintenance.');
+          }
+        }),
         fetch('http://127.0.0.1:5000/profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId, vehicle: {} })
-        }).then(res => res.json()),
+        }).then(async res => {
+          try {
+            return await res.json();
+          } catch (err) {
+            const text = await res.text();
+            console.error("Failed to parse JSON from profile. Raw response:", text);
+            throw new Error('Server returned invalid response for profile.');
+          }
+        }),
         fetch('http://127.0.0.1:5000/notifications', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user_id: userId })
-        }).then(res => res.json())
+        }).then(async res => {
+          try {
+            return await res.json();
+          } catch (err) {
+            const text = await res.text();
+            console.error("Failed to parse JSON from notifications. Raw response:", text);
+            throw new Error('Server returned invalid response for notifications.');
+          }
+        })
       ]).then(([maintenance, profile, notif]) => {
         setStats({
           lastService: profile.vehicle?.last_service_date || 'N/A',
@@ -120,7 +152,8 @@ function App() {
         setLoadingStats(false);
         setLoadingNotifications(false);
       }).catch(err => {
-        setStatsError('Could not load dashboard info.');
+        console.error('Dashboard fetch error:', err);
+        setStatsError('Could not load dashboard info: ' + err.message);
         setLoadingStats(false);
         setLoadingNotifications(false);
       });

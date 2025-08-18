@@ -10,17 +10,29 @@ const Register = ({ onGoLogin }) => {
   const handleRegister = async (e) => {
     e.preventDefault();
     setMessage('');
-    const res = await fetch(`${API_BASE_URL}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setMessage('Registration successful!');
-      setName(''); setEmail(''); setPassword('');
-    } else {
-      setMessage(data.error || 'Registration failed');
+    try {
+      const res = await fetch(`${API_BASE_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      let data;
+      try {
+        data = await res.json();
+      } catch (err) {
+        const text = await res.text();
+        console.error("Failed to parse JSON. Raw response:", text);
+        setMessage('Server returned invalid response.');
+        return;
+      }
+      if (res.ok) {
+        setMessage('Registration successful!');
+        setName(''); setEmail(''); setPassword('');
+      } else {
+        setMessage(data.error || 'Registration failed');
+      }
+    } catch (err) {
+      setMessage('Network error');
     }
   };
 
