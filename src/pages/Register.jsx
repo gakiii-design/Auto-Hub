@@ -27,6 +27,8 @@ const Register = ({ onGoLogin }) => {
       }
       if (res.ok) {
         setMessage('Registration successful!');
+        // Store user data in localStorage for automatic login
+        localStorage.setItem('user', JSON.stringify(data.user));
         setName(''); setEmail(''); setPassword('');
       } else {
         setMessage(data.error || 'Registration failed');

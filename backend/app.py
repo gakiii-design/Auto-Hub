@@ -1,256 +1,236 @@
 from flask import Flask, request, jsonify
+import sqlite3
 from flask_cors import CORS
-import mysql.connector
 from werkzeug.security import generate_password_hash, check_password_hash
-import os
-from datetime import datetime, timedelta
 
 app = Flask(__name__)
-# Enhanced CORS configuration to handle preflight requests properly
-CORS(app, 
-     origins=['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
-     supports_credentials=True,
-     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})  # Allow React frontend to talk to backend
 
-# Database connection setup
-# Update these values with your MySQL credentials
-DB_CONFIG = {
-    'host': 'localhost',
-    'port': 3305,
-    'user': 'root',
-    'password': 'Kinyanjui@7873',  # Set your MySQL root password
-    'database': 'autohub'
-}
-
-def get_db_connection():
-    return mysql.connector.connect(**DB_CONFIG)
-
-@app.route('/register', methods=['POST'])
-def register():
-    """
-    Registers a new user with name, email and password.
-    """
-    data = request.get_json()
-    name = data.get('name')
-    email = data.get('email')
-    password = data.get('password')
-    if not name or not email or not password:
-        return jsonify({'error': 'Name, email and password required'}), 400
-    hashed_pw = generate_password_hash(password)
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO users (name, email, password) VALUES (%s, %s, %s)", (name, email, hashed_pw))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return jsonify({'message': 'User registered successfully'}), 201
-    except mysql.connector.IntegrityError as err:
-        if err.errno == 1062:
-            return jsonify({'error': 'User already exists with this email.'}), 409
-        return jsonify({'error': str(err)}), 500
-    except mysql.connector.Error as err:
-        return jsonify({'error': str(err)}), 500
-
-@app.route('/login', methods=['POST'])
-def login():
-    """
-    Logs in a user. Expects JSON with 'email' and 'password'.
-    """
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
-    if not email or not password:
-        return jsonify({'error': 'Email and password required'}), 400
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-        user = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        if user and check_password_hash(user['password'], password):
-            return jsonify({'message': 'Login successful', 'user_id': user['id']}), 200
-        else:
-            return jsonify({'error': 'Invalid credentials'}), 401
-    except mysql.connector.Error as err:
-        return jsonify({'error': str(err)}), 500
-
-@app.route('/profile', methods=['POST'])
-def setup_profile():
-    """
-    Sets up or updates a user's vehicle profile. Expects JSON with user_id and vehicle details.
-    Also returns user name and vehicle model for dashboard greeting.
-    """
-    data = request.get_json()
-    user_id = data.get('user_id')
-    vehicle = data.get('vehicle')
-    if not user_id:
-        return jsonify({'error': 'User ID required'}), 400
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        # If vehicle data is provided, update/insert
-        if vehicle:
-            cursor.execute('''
-                INSERT INTO vehicles (user_id, mileage, manufacture_year, last_service_date, terrain_type, current_performance, likely_locations)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    mileage=VALUES(mileage),
-                    manufacture_year=VALUES(manufacture_year),
-                    last_service_date=VALUES(last_service_date),
-                    terrain_type=VALUES(terrain_type),
-                    current_performance=VALUES(current_performance),
-                    likely_locations=VALUES(likely_locations)
-            ''', (
-                user_id,
-                vehicle.get('mileage'),
-                vehicle.get('manufacture_year'),
-                vehicle.get('last_service_date'),
-                vehicle.get('terrain_type'),
-                vehicle.get('current_performance'),
-                vehicle.get('likely_locations')
-            ))
-            conn.commit()
-        # Always fetch user and vehicle info for dashboard
-        cursor.execute('SELECT email FROM users WHERE id = %s', (user_id,))
-        user = cursor.fetchone()
-        cursor.execute('SELECT * FROM vehicles WHERE user_id = %s', (user_id,))
-        vehicle_row = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        # Simulate user name and vehicle model if not present
-        user_name = user['email'].split('@')[0].capitalize() if user and 'email' in user else 'User'
-        vehicle_model = f"{vehicle_row['manufacture_year']} Model" if vehicle_row and vehicle_row.get('manufacture_year') else 'Your Car'
-        return jsonify({
-            'user': {'name': user_name},
-            'vehicle': vehicle_row or {},
-            'vehicle_model': vehicle_model
-        })
-    except mysql.connector.Error as err:
-        return jsonify({'error': str(err)}), 500
-
-@app.route('/maintenance', methods=['POST'])
-def maintenance_schedule():
-    """
-    Calculates the next maintenance date and gives a recommendation based on mileage and last service date.
-    Expects JSON with 'user_id'.
-    """
-    data = request.get_json()
-    user_id = data.get('user_id')
-    if not user_id:
-        return jsonify({'error': 'User ID required'}), 400
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT mileage, last_service_date FROM vehicles WHERE user_id = %s", (user_id,))
-        vehicle = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        if not vehicle:
-            return jsonify({'error': 'Vehicle profile not found'}), 404
-        mileage = vehicle['mileage'] or 0
-        last_service_date = vehicle['last_service_date']
-        # Assume maintenance every 10,000 km or 6 months, whichever comes first
-        next_mileage = ((mileage // 10000) + 1) * 10000
-        if last_service_date:
-            last_service = datetime.strptime(str(last_service_date), '%Y-%m-%d')
-            next_service_date = last_service + timedelta(days=180)
-            next_service_date_str = next_service_date.strftime('%Y-%m-%d')
-        else:
-            next_service_date_str = 'Unknown'
-        recommendation = f"Next maintenance at {next_mileage} km or by {next_service_date_str}."
-        return jsonify({
-            'current_mileage': mileage,
-            'next_mileage': next_mileage,
-            'next_service_date': next_service_date_str,
-            'recommendation': recommendation
-        })
-    except mysql.connector.Error as err:
-        return jsonify({'error': str(err)}), 500
-
-@app.route('/notifications', methods=['POST'])
-def get_notifications():
-    """
-    Returns a list of notifications for the user. Simulated for now.
-    Expects JSON with 'user_id'.
-    """
-    data = request.get_json()
-    user_id = data.get('user_id')
-    if not user_id:
-        return jsonify({'error': 'User ID required'}), 400
-    # Simulate notifications
-    notifications = [
-        {'message': 'Time for your next maintenance!', 'type': 'maintenance', 'date': '2024-07-01'},
-        {'message': 'Upgrade available: New air filter recommended.', 'type': 'upgrade', 'date': '2024-06-15'},
-    ]
-    if int(user_id) == 1:
-        notifications.append({'message': 'Admin: 2 new service requests.', 'type': 'admin', 'date': '2024-07-10'})
-    return jsonify({'notifications': notifications})
-
-# Booking API endpoints
-
-import logging
-
-@app.route('/bookings', methods=['POST'])
-def create_booking():
-    try:
-        data = request.get_json()
-        logging.info(f"Received booking data: {data}")
-        service_type = data.get('serviceType')
-        date = data.get('date')
-        time = data.get('time')
-
-        if not service_type or not date or not time:
-            logging.warning("Missing required fields in booking data")
-            return jsonify({'error': 'Missing required fields'}), 400
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO bookings (service_type, date, time, status) VALUES (%s, %s, %s, %s)",
-            (service_type, date, time, 'pending')
+# Initialize DB if not exists
+def init_db():
+    conn = sqlite3.connect("auto_hub.db")
+    c = conn.cursor()
+    
+    # Users table for authentication
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'user'
         )
-        conn.commit()
-        booking_id = cursor.lastrowid
-        cursor.close()
-        conn.close()
-        logging.info(f"Booking created with ID: {booking_id}")
-        return jsonify({'message': 'Booking created', 'booking_id': booking_id}), 201
-    except Exception as e:
-        logging.error(f"Error creating booking: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+    """)
+    
+    # Bookings table - ensure correct schema
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS bookings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            user_email TEXT NOT NULL,
+            service_type TEXT NOT NULL,
+            date TEXT NOT NULL,
+            time TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'confirmed',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Insert test user if not exists
+    c.execute("SELECT * FROM users WHERE email = ?", ("test@example.com",))
+    if not c.fetchone():
+        hashed_password = generate_password_hash("password123")
+        c.execute("INSERT INTO users (email, password, role) VALUES (?, ?, ?)", 
+                 ("test@example.com", hashed_password, "user"))
+    
+    conn.commit()
+    conn.close()
 
-@app.route('/bookings', methods=['GET'])
+init_db()
+
+
+# 📌 Create a new booking (POST)
+@app.route("/bookings", methods=["POST"])
+def book_service():
+    data = request.get_json()
+
+    service_type = data.get("service_type") or data.get("serviceType")
+    date = data.get("date")
+    time = data.get("time")
+    user_email = data.get("user_email")
+    user_id = data.get("user_id")
+
+    if not all([service_type, date, time, user_email]):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    conn = sqlite3.connect("auto_hub.db")
+    c = conn.cursor()
+    
+    # Insert booking with user email
+    c.execute(
+        "INSERT INTO bookings (user_id, user_email, service_type, date, time, status) VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, user_email, service_type, date, time, "confirmed"),
+    )
+    
+    booking_id = c.lastrowid
+    conn.commit()
+    
+    # Get the created booking details
+    booking_details = {
+        "booking_id": booking_id,
+        "user_email": user_email,
+        "service_type": service_type,
+        "date": date,
+        "time": time,
+        "status": "confirmed"
+    }
+    
+    conn.close()
+
+    return jsonify({
+        "message": "Booking successful",
+        "booking_id": booking_id
+    }), 201
+
+
+# 📌 User registration (POST)
+@app.route("/register", methods=["POST"])
+def register():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+    
+    if not email or not password:
+        return jsonify({"error": "Email and password required"}), 400
+    
+    conn = sqlite3.connect("auto_hub.db")
+    c = conn.cursor()
+    
+    # Check if user already exists
+    existing_user = c.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    if existing_user:
+        conn.close()
+        return jsonify({"error": "User already exists"}), 409
+    
+    # Create new user
+    hashed_password = generate_password_hash(password)
+    c.execute("INSERT INTO users (email, password) VALUES (?, ?)", (email, hashed_password))
+    conn.commit()
+    
+    # Get the newly created user
+    user = c.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    conn.close()
+    
+    return jsonify({
+        "message": "User registered successfully",
+        "user": {
+            "id": user[0],
+            "email": user[1],
+            "role": user[3]
+        }
+    }), 201
+
+# 📌 User login (POST)
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+    
+    if not email or not password:
+        return jsonify({"error": "Email and password required"}), 400
+    
+    conn = sqlite3.connect("auto_hub.db")
+    c = conn.cursor()
+    user = c.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    conn.close()
+    
+    if not user or not check_password_hash(user[2], password):
+        return jsonify({"error": "Invalid credentials"}), 401
+    
+    return jsonify({
+        "message": "Login successful",
+        "user": {
+            "id": user[0],
+            "email": user[1],
+            "role": user[3]
+        }
+    })
+
+# 📌 Get all bookings (GET)
+@app.route("/bookings", methods=["GET"])
 def get_bookings():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM bookings ORDER BY date, time")
-        bookings = cursor.fetchall()
-        # Convert time and date fields to string for JSON serialization
-        for booking in bookings:
-            if 'time' in booking and booking['time'] is not None:
-                time_value = booking['time']
-                # Handle timedelta or time object
-                if hasattr(time_value, 'strftime'):
-                    booking['time'] = time_value.strftime('%H:%M:%S')
-                elif hasattr(time_value, 'total_seconds'):
-                    total_seconds = int(time_value.total_seconds())
-                    hours = total_seconds // 3600
-                    minutes = (total_seconds % 3600) // 60
-                    seconds = total_seconds % 60
-                    booking['time'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-                else:
-                    booking['time'] = str(time_value)
-            if 'date' in booking and booking['date'] is not None:
-                booking['date'] = booking['date'].strftime('%Y-%m-%d')
-        cursor.close()
-        conn.close()
-        return jsonify({'bookings': bookings})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    conn = sqlite3.connect("auto_hub.db")
+    c = conn.cursor()
+    c.execute("SELECT * FROM bookings")
+    rows = c.fetchall()
+    conn.close()
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+    bookings = [
+        {"id": row[0], "service_type": row[1], "date": row[2], "time": row[3], "status": row[4]}
+        for row in rows
+    ]
+    return jsonify(bookings)
+
+# 📌 Get maintenance info (POST)
+@app.route("/maintenance", methods=["POST", "OPTIONS"])
+def get_maintenance():
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
+    
+    data = request.get_json()
+    user_id = data.get("user_id")
+    
+    # Mock maintenance data for demo
+    return jsonify({
+        "next_service_date": "2024-02-15",
+        "maintenance_items": [
+            {"item": "Oil Change", "due_date": "2024-02-15", "priority": "high"},
+            {"item": "Tire Rotation", "due_date": "2024-02-20", "priority": "medium"},
+            {"item": "Brake Inspection", "due_date": "2024-02-25", "priority": "medium"}
+        ]
+    })
+
+# 📌 Get notifications (POST)
+@app.route("/notifications", methods=["POST", "OPTIONS"])
+def get_notifications():
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
+    
+    data = request.get_json()
+    user_id = data.get("user_id")
+    
+    # Mock notifications for demo
+    return jsonify({
+        "notifications": [
+            {"id": 1, "message": "Oil change due in 5 days", "type": "maintenance", "date": "2024-01-10"},
+            {"id": 2, "message": "Tire pressure low", "type": "alert", "date": "2024-01-08"},
+            {"id": 3, "message": "Service appointment confirmed", "type": "booking", "date": "2024-01-05"}
+        ]
+    })
+
+# 📌 Get/update profile (POST)
+@app.route("/profile", methods=["POST", "OPTIONS"])
+def handle_profile():
+    if request.method == "OPTIONS":
+        return jsonify({"message": "OK"}), 200
+    
+    data = request.get_json()
+    user_id = data.get("user_id")
+    
+    # Mock profile data for demo
+    return jsonify({
+        "user": {
+            "name": "John Doe",
+            "email": "john@example.com"
+        },
+        "vehicle": {
+            "model": "Toyota Camry 2022",
+            "mileage": 25000,
+            "last_service_date": "2024-01-01",
+            "current_performance": "Good",
+            "vehicleYear": 2022
+        }
+    })
+
+if __name__ == "__main__":
+    app.run(debug=True)

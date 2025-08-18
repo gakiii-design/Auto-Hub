@@ -27,7 +27,9 @@ const Login = ({ onLogin, onGoRegister }) => {
       }
       if (res.ok) {
         setMessage('Login successful!');
-        if (onLogin) onLogin(data.user_id);
+        // Store user data in localStorage for other components to access
+        localStorage.setItem('user', JSON.stringify(data.user));
+        if (onLogin) onLogin(data.user.id);
       } else {
         setMessage(data.error || 'Login failed');
       }
